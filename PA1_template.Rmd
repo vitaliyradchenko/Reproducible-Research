@@ -1,0 +1,166 @@
+**Peer assigment**
+======================
+  
+##*Loading and preprocessing the data*
+```{r load,warning=FALSE,message=FALSE}
+library(data.table)
+library(ggplot2)
+setwd('C:/R')
+if (!file.exists('source data')) {
+        dir.create('source data')
+}
+
+# check to see if the existing tidy data set exists; if not, make it...
+if (!file.exists('source data/activity.csv')) {
+        
+        # download the zip file and unzip
+        file.url<-'https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip'
+        download.file(file.url,destfile='source data/activity.zip')
+        unzip('source data/activity.zip',exdir='source data',overwrite=TRUE)
+}       
+
+dat <- read.csv('source data/activity.csv')
+dat<-data.table(dat)
+library(lubridate)
+dat[,date:=ymd(date)]
+```
+
+#*What is mean total number of steps taken per day?*
+1. Calculate the total number of steps  
+```{r total,cache=TRUE}
+total_steps <- copy(dat)
+total_steps <- total_steps[,sum(steps),by=date]
+setnames(total_steps,names(total_steps),c("date","steps"))
+total_steps <- total_steps[!is.na(steps)]
+head(total_steps)
+```
+2. Create a histogram  
+```{r histogram,fig.height=4,fig.align='center',warning=FALSE}
+rng<-range(total_steps[,steps],na.rm = TRUE)
+rng<-rng[2]-rng[1]
+ggplot(total_steps,aes(steps))+
+        geom_histogram(fill=colors()[65],col=colors()[36],binwidth=rng/5)+
+        labs(title="Histogram of the total number of steps taken each day", 
+             x="Total steps",y="Frequency")+
+        geom_vline(aes(xintercept = mean(total_steps[,steps],na.rm=TRUE),   
+                color="Mean",linetype = "Mean"),lwd=4,show_guide = TRUE) +
+        scale_colour_manual(name="Units", values=c(Mean=colors()[54])) +
+        scale_linetype_manual(name="Units", values=c(Mean="solid"),guide=FALSE)+
+        geom_rug()+
+        theme(panel.background = element_rect(fill = "lightblue"),
+              panel.grid.minor = element_line(linetype = "dotted"), 
+              axis.text = element_text(size = 12),
+              axis.title.x = element_text(size = rel(1), angle = 00),
+              axis.title.y = element_text(size = rel(1), angle = 90),
+              plot.title = element_text(lineheight=3, face="bold", 
+              color="black",size=18,vjust = 1.5))
+```
+
+3. The Mean and Median of the total steps
+```{r mean_median}
+mean_steps <- mean(total_steps[,steps],na.rm = TRUE)
+median_steps <- median(total_steps[,steps],na.rm = TRUE)
+```
+The Mean of the total steps is `r as.integer(mean_steps)`.  
+The Median of the total steps is `r as.integer(median_steps)`.
+
+
+
+##*What is the average daily activity pattern?*
+1. Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+
+Time series plot
+```{r avarage, fig.height=4, fig.align='center',warning=FALSE}
+steps_intervals <- dat[,mean(steps,na.rm=TRUE),by=interval]
+setnames(steps_intervals,names(steps_intervals),c("interval","steps"))
+ggplot(steps_intervals,aes(interval,steps))+
+        geom_line(col=colors()[425],size=2)+
+        labs(title="The average number of steps by interval")+
+        theme(panel.background = element_rect(fill = "lightblue"),
+              panel.grid.minor = element_line(linetype = "dotted"), 
+              legend.position = "none",  axis.text = element_text(size = 12),
+              axis.title.x = element_text(size = rel(1), angle = 00),
+              axis.title.y = element_text(size = rel(1), angle = 90),
+              plot.title = element_text(lineheight=0.8, face="bold", 
+              color="black",size=18,vjust = 1.5))
+```
+
+2. Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+```{r max,}
+max_int <- steps_intervals[max(steps)==steps,interval]
+max_step <- steps_intervals[max(steps)==steps,steps]
+```
+
+The interval `r max_int` has the maximum average value of steps (`r max_step`).
+
+##*Imputing missing values*
+1. Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+```{r na}
+na_rows <- dat[is.na(steps),.N]
+na_rows
+```
+2. Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.
+```{r strategy}
+dat1<-copy(dat)
+dat1 <- dat1[,mean:=mean(steps,na.rm=TRUE),by=interval]
+dat1 <- dat1[is.na(steps),steps:=as.integer(mean)]
+dat1 <- dat1[,1:3,with=FALSE]
+```
+
+3. Create a new dataset that is equal to the original dataset but with the missing data filled in.
+```{r create}
+dat1 <- dat1[,sum(steps),by=date]
+setnames(dat1,names(dat1),c("date","steps"))
+head(dat1)
+```
+
+4. Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+```{r histogram2,fig.height=4,fig.align='center',warning=FALSE,cache=TRUE}
+rng2<-range(dat1[,steps])
+rng2<-rng2[2]-rng2[1]
+ggplot(dat1,aes(steps))+
+        geom_histogram(fill=colors()[65],col=colors()[36],binwidth=rng2/5)+
+        labs(title="Histogram of the total number of steps taken each day", 
+             x="Total steps",y="Frequency")+
+        geom_vline(aes(xintercept = mean(total_steps[,steps],na.rm=TRUE),   
+                color="Mean",linetype = "Mean"),lwd=4,show_guide = TRUE) +
+        scale_colour_manual(name="Units", values=c(Mean=colors()[54])) +
+        scale_linetype_manual(name="Units", values=c(Mean="solid"),   
+                guide=FALSE) + 
+        geom_rug()+
+        theme(panel.background = element_rect(fill = "lightblue"),
+              panel.grid.minor = element_line(linetype = "dotted"), 
+              axis.text = element_text(size = 12),
+              axis.title.x = element_text(size = rel(1), angle = 00),
+              axis.title.y = element_text(size = rel(1), angle = 90),
+              plot.title = element_text(lineheight=3, face="bold", 
+              color="black",size=18,vjust = 1.5))
+```
+
+```{r mean_median2}
+mean_steps2 <- mean(dat1[,steps])
+median_steps2 <- median(dat1[,steps])
+```
+The Mean of the total steps without NAs is `r as.integer(mean_steps2)`.  
+The Median of the total steps without NAs is `r as.integer(median_steps2)`.
+
+##*Are there differences in activity patterns between weekdays and weekends?*
+1. Create a new factor variable in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day.
+```{r weekday}
+dat2 <- copy(dat)
+dat2 <- dat2[,type_day2:=wday(date)]
+dat2 <- dat2[c(1,7)==type_day2,type_day:="weekend"]
+dat2 <- dat2[c(1,7)!=type_day2,type_day:="weekday"]
+dat2 <- dat2[,c(1:3,5),with=FALSE]
+steps_intervals <- dat2[,mean(steps,na.rm=TRUE),by=.(interval,type_day)]
+setnames(steps_intervals,names(steps_intervals),c("Interval","Type_day","Steps"))
+steps_intervals <- steps_intervals[,Type_day:=as.factor(Type_day)]
+```
+
+2. Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). See the README file in the GitHub repository to see an example of what this plot should look like using simulated data.
+```{r panelplot}
+library(lattice)
+setkey(steps_intervals,Type_day,Interval)
+xyplot(Steps ~ Interval | Type_day, data=steps_intervals,type="l", layout = c(1, 2))
+```
+
